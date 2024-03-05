@@ -9,6 +9,14 @@ from .serializers import RegistrationSerializer, LoginSerializer, ProfileSeriali
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
+from django.http import JsonResponse
+import json
+from django.views.decorators.csrf import csrf_exempt
+from django.core.cache import cache
+from .password_reset_file import reset_password
+from .send_otp_logic import sendOtp
+from rest_framework.decorators import api_view
+
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -60,4 +68,33 @@ class userlogout(APIView):       #here we have to pass access token
         return Response(status=status.HTTP_204_NO_CONTENT)
     
 
- 
+
+
+@csrf_exempt
+@api_view(['POST'])
+def send_otp(request):
+    email = (json.loads(request.body))['email']
+    # email = request.POST["email"]
+    
+    resp = sendOtp(email)
+    return JsonResponse({"message": "OTP sent successfully","status":resp.status_code}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def confirm_otp(request):
+    email = request.data.get('email')
+    otp = request.data.get('otp')
+    
+    cached_otp = cache.get(email)
+    if cached_otp is None or cached_otp != otp:
+        return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    return Response({"message": "OTP verified successfully"}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def reset_password_view(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+    confirm_password = request.data.get('confirm_password')
+
+    result = reset_password(email, password, confirm_password)  
+    return result 
